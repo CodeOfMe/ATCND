@@ -118,7 +118,9 @@ python examples/demo_all.py
 - **8 search strategies**: grid, binary, golden section, ternary, Fibonacci, interpolation, exponential, predictive
 - **15 adapters** spanning NumPy, SciPy, scikit-learn, PyTorch, Gensim, and Pandas
 - **3 model families**: LDA, NMF, K-Means (plus GMM, PCA, DBSCAN, etc.)
-- **5 quality metrics**: silhouette, coherence (c_v), perplexity, reconstruction error, combined
+- **5 quality metrics**: silhouette, silhouette\_knee, bic, combined, silhouette\_drop
+- **Adaptive strategy selection**: automatically recommends best strategy + metric based on data profile (dimensionality, sparsity, separation)
+- **Multi-objective optimization**: simultaneously optimize multiple metrics (e.g., silhouette + BIC) with Pareto frontier
 - **Ranked candidate set**: returns multiple optimal K values (handles plateaus, ties, multi-optima)
 - **First O(log N) method** in the model-agnostic + exact-K class: 59–79% fewer evaluations than grid search
 - **Predictive search** with PCA hot-start: 76% reduction (7 evaluations vs 29 for grid)
@@ -223,6 +225,59 @@ config = ATCNDConfig(
     metric="coherence",
 )
 result = atcnd_search(texts=texts, config=config)
+```
+
+### Adaptive Strategy Selection
+
+ATCND automatically recommends the best strategy + metric based on data characteristics (dimensionality, sparsity, cluster separation, intrinsic dimension):
+
+```python
+from atcnd import adaptive_select, adaptive_search
+
+# Get recommendation without running search
+rec = adaptive_select(X, k_min=2, k_max=30)
+print(f"Recommended: {rec.strategy} + {rec.metric} (confidence: {rec.confidence:.2f})")
+print(f"Top 5: {[(r['strategy'], r['metric'], r['score']) for r in rec.all_recommendations[:5]}")
+
+# Or run search directly with auto-selected strategy
+result = adaptive_search(X, k_min=2, k_max=30)
+print(f"K* = {result.optimal_k}, strategy = {result.strategy}")
+```
+
+CLI:
+
+```bash
+atcnd adaptive --k-min 2 --k-max 30
+atcnd adaptive --k-min 2 --k-max 30 --run --json
+```
+
+### Multi-Objective Optimization
+
+Optimize multiple metrics simultaneously and find Pareto-optimal K values:
+
+```python
+from atcnd import multi_objective_search
+from sklearn.cluster import KMeans
+
+# Silhouette + BIC with equal weights
+mo = multi_objective_search(KMeans, X, metrics=["silhouette", "bic"], k_min=2, k_max=30)
+print(f"Combined best: K* = {mo.optimal_k}")
+print(f"Pareto frontier: {mo.pareto_ks}")  # Non-dominated K values
+
+# Custom weights (prioritize silhouette)
+mo = multi_objective_search(KMeans, X, metrics=["silhouette", "bic"],
+                              weights={"silhouette": 0.7, "bic": 0.3}, k_min=2, k_max=30)
+
+# Three metrics
+mo = multi_objective_search(KMeans, X, metrics=["silhouette", "bic", "silhouette_drop"],
+                              k_min=2, k_max=30)
+```
+
+CLI:
+
+```bash
+atcnd multi --metrics silhouette bic --k-min 2 --k-max 30
+atcnd multi --metrics silhouette bic --weights 0.7 0.3 --json
 ```
 
 ### CLI

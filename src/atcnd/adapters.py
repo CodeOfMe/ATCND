@@ -63,35 +63,31 @@ def search_model(
             best_score = all_scores[best_k]
         elif metric == "bic":
             n, d = X_arr.shape
-            best_k = k_min
-            best_bic = np.inf
+            bic_scores = {}
             for k in ks:
                 inertia = all_models[k].inertia_
                 bic = 2 * d * k * np.log(n) + n * np.log(inertia / n)
-                if bic < best_bic:
-                    best_bic = bic
-                    best_k = k
-            best_score = all_scores[best_k]
+                bic_scores[k] = -bic
+            best_k = max(bic_scores, key=bic_scores.get)
+            best_score = bic_scores[best_k]
+            all_scores = bic_scores
         elif metric == "combined":
-            # silhouette * (1 - 1/k) — balances quality with cluster count
-            best_k = max(all_scores, key=lambda k: all_scores[k] * (1 - 1/k))
-            best_score = all_scores[best_k]
+            combined_scores = {k: all_scores[k] * (1 - 1/k) for k in all_scores}
+            best_k = max(combined_scores, key=combined_scores.get)
+            best_score = combined_scores[best_k]
+            all_scores = combined_scores
         elif metric == "silhouette_drop":
-            # Find K where the relative drop in silhouette is largest
-            # This identifies the "elbow" where adding more clusters no longer helps
-            drops = []
-            for i in range(1, len(scores)):
-                if scores[i-1] > 0:
-                    drop = (scores[i-1] - scores[i]) / scores[i-1]
+            drops_scores = {}
+            for i in range(len(scores)):
+                if i == 0:
+                    drops_scores[ks[i]] = 0.0
                 else:
-                    drop = 0
-                drops.append(drop)
-            # Find the first significant drop (local maximum in drops)
-            if drops:
-                best_idx = int(np.argmax(drops)) + 1  # +1 because drops[i] corresponds to ks[i+1]
-                best_k = ks[best_idx]
-            else:
-                best_k = ks[0]
+                    if scores[i-1] > 0:
+                        drops_scores[ks[i]] = (scores[i-1] - scores[i]) / scores[i-1]
+                    else:
+                        drops_scores[ks[i]] = 0.0
+            drop_k = max(drops_scores, key=drops_scores.get)
+            best_k = drop_k
             best_score = all_scores[best_k]
 
         # Build SearchResult with all evaluations

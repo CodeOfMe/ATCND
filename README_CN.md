@@ -118,7 +118,9 @@ python examples/demo_all.py
 - **8种搜索策略**：网格、二分、黄金分割、三分、斐波那契、插值、指数、预测
 - **15个适配器**：覆盖 NumPy、SciPy、scikit-learn、PyTorch、Gensim、Pandas
 - **3种模型族**：LDA、NMF、K-Means（加上 GMM、PCA、DBSCAN 等）
-- **5种质量指标**：轮廓系数、一致性(c_v)、困惑度、重构误差、组合指标
+- **5种质量指标**：轮廓系数、轮廓膝部、BIC、组合指标、轮廓下降
+- **自适应策略选择**：根据数据特征（维度、稀疏度、分离度）自动推荐最佳策略+指标组合
+- **多目标优化**：同时优化多个指标（如轮廓系数+BIC），返回帕累托最优K值
 - **排序候选集**：返回多个最优K值（处理平台区、并列分数、多极值情况）
 - **模型无关+精确K等价类中首个O(log N)方法**：相比网格搜索减少59-79%的模型评估次数
 - **预测搜索**配合PCA热启动：减少76%（7次评估 vs 网格的29次）
@@ -221,6 +223,54 @@ config = ATCNDConfig(
     metric="coherence",
 )
 result = atcnd_search(texts=texts, config=config)
+```
+
+### 自适应策略选择
+
+ATCND根据数据特征（维度、稀疏度、分离度、内在维度）自动推荐最佳策略+指标组合：
+
+```python
+from atcnd import adaptive_select, adaptive_search
+
+# 获取推荐（不运行搜索）
+rec = adaptive_select(X, k_min=2, k_max=30)
+print(f"推荐: {rec.strategy} + {rec.metric} (置信度: {rec.confidence:.2f})")
+
+# 直接运行自适应搜索
+result = adaptive_search(X, k_min=2, k_max=30)
+print(f"K* = {result.optimal_k}, 策略 = {result.strategy}")
+```
+
+命令行:
+
+```bash
+atcnd adaptive --k-min 2 --k-max 30
+atcnd adaptive --k-min 2 --k-max 30 --run --json
+```
+
+### 多目标优化
+
+同时优化多个指标，返回帕累托最优K值：
+
+```python
+from atcnd import multi_objective_search
+from sklearn.cluster import KMeans
+
+# 轮廓系数 + BIC，等权重
+mo = multi_objective_search(KMeans, X, metrics=["silhouette", "bic"], k_min=2, k_max=30)
+print(f"综合最优: K* = {mo.optimal_k}")
+print(f"帕累托前沿: {mo.pareto_ks}")
+
+# 自定义权重（优先轮廓系数）
+mo = multi_objective_search(KMeans, X, metrics=["silhouette", "bic"],
+                              weights={"silhouette": 0.7, "bic": 0.3}, k_min=2, k_max=30)
+```
+
+命令行:
+
+```bash
+atcnd multi --metrics silhouette bic --k-min 2 --k-max 30
+atcnd multi --metrics silhouette bic --weights 0.7 0.3 --json
 ```
 
 ### 命令行

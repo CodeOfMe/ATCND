@@ -40,8 +40,19 @@ from .comparison import (
     run_full_comparison,
     print_comparison_table,
 )
+from .adaptive import (
+    adaptive_select,
+    adaptive_search,
+    profile_data,
+    AdaptiveRecommendation,
+    DataProfile,
+)
+from .multi_objective import (
+    multi_objective_search,
+    MultiObjectiveResult,
+)
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
     "search",
@@ -81,4 +92,11 @@ __all__ = [
     "baseline_hdp",
     "run_full_comparison",
     "print_comparison_table",
+    "adaptive_select",
+    "adaptive_search",
+    "profile_data",
+    "AdaptiveRecommendation",
+    "DataProfile",
+    "multi_objective_search",
+    "MultiObjectiveResult",
 ]

@@ -21,6 +21,8 @@ from atcnd import (
     search, SearchResult, ATCNDConfig, ATCNDResult, atcnd_search,
     search_model, search_bins, search_components, search_param,
     animate_search,
+    adaptive_select, adaptive_search, profile_data, AdaptiveRecommendation, DataProfile,
+    multi_objective_search, MultiObjectiveResult,
 )
 
 STRATEGIES = ["binary", "golden_section", "ternary", "fibonacci",
@@ -686,6 +688,88 @@ class TestEdgeCases(unittest.TestCase):
         self.assertIn(sr.optimal_k, [5, 6, 7, 8, 10])
 
 
+class TestAdaptiveSelection(unittest.TestCase):
+    def test_profile_data(self):
+        np.random.seed(42)
+        X, _ = make_blobs(n_samples=200, n_features=10, centers=3, random_state=42)
+        profile = profile_data(X)
+        self.assertEqual(profile.n_samples, 200)
+        self.assertEqual(profile.n_features, 10)
+        self.assertGreaterEqual(profile.intrinsic_dim, 1)
+        self.assertGreaterEqual(profile.separation_ratio, 0.0)
+        self.assertLessEqual(profile.separation_ratio, 1.0)
+
+    def test_adaptive_select_returns_recommendation(self):
+        np.random.seed(42)
+        X, _ = make_blobs(n_samples=200, n_features=10, centers=3, random_state=42)
+        rec = adaptive_select(X, k_min=2, k_max=15)
+        self.assertIsInstance(rec, AdaptiveRecommendation)
+        self.assertIn(rec.strategy, ["binary", "golden_section", "ternary", "fibonacci",
+                                      "interpolation", "exponential", "predictive"])
+        self.assertIn(rec.metric, ["silhouette", "silhouette_knee", "bic", "combined", "silhouette_drop"])
+        self.assertGreater(rec.confidence, 0.0)
+        self.assertLessEqual(rec.confidence, 1.0)
+        self.assertGreater(len(rec.all_recommendations), 0)
+
+    def test_adaptive_select_iris(self):
+        from sklearn.datasets import load_iris
+        iris = load_iris()
+        rec = adaptive_select(iris.data, k_min=2, k_max=15)
+        self.assertEqual(rec.profile.n_samples, 150)
+        self.assertEqual(rec.profile.n_features, 4)
+
+    def test_adaptive_search_runs(self):
+        np.random.seed(42)
+        X, _ = make_blobs(n_samples=200, n_features=10, centers=3, random_state=42)
+        result = adaptive_search(X, k_min=2, k_max=15)
+        self.assertIsInstance(result, SearchResult)
+        self.assertGreaterEqual(result.optimal_k, 2)
+        self.assertLessEqual(result.optimal_k, 15)
+        self.assertIn("adaptive", result.strategy)
+
+
+class TestMultiObjective(unittest.TestCase):
+    def test_multi_objective_basic(self):
+        np.random.seed(42)
+        X, _ = make_blobs(n_samples=300, n_features=20, centers=5, random_state=42)
+        mo = multi_objective_search(KMeans, X, metrics=["silhouette", "bic"], k_min=2, k_max=10)
+        self.assertIsInstance(mo, MultiObjectiveResult)
+        self.assertGreaterEqual(mo.optimal_k, 2)
+        self.assertLessEqual(mo.optimal_k, 10)
+        self.assertIn("silhouette", mo.per_metric_scores)
+        self.assertIn("bic", mo.per_metric_scores)
+        self.assertIn("silhouette", mo.normalized_scores)
+        self.assertIn("bic", mo.normalized_scores)
+
+    def test_multi_objective_pareto(self):
+        np.random.seed(42)
+        X, _ = make_blobs(n_samples=300, n_features=20, centers=5, random_state=42)
+        mo = multi_objective_search(KMeans, X, metrics=["silhouette", "bic"], k_min=2, k_max=10)
+        self.assertIsInstance(mo.pareto_ks, list)
+        self.assertGreater(len(mo.pareto_ks), 0)
+
+    def test_multi_objective_weights(self):
+        np.random.seed(42)
+        X, _ = make_blobs(n_samples=300, n_features=20, centers=5, random_state=42)
+        mo = multi_objective_search(KMeans, X, metrics=["silhouette", "bic"],
+                                     weights={"silhouette": 0.7, "bic": 0.3}, k_min=2, k_max=10)
+        self.assertAlmostEqual(sum(mo.weights.values()), 1.0, places=5)
+
+    def test_multi_objective_three_metrics(self):
+        np.random.seed(42)
+        X, _ = make_blobs(n_samples=300, n_features=20, centers=5, random_state=42)
+        mo = multi_objective_search(KMeans, X, metrics=["silhouette", "bic", "combined"],
+                                     k_min=2, k_max=10)
+        self.assertEqual(len(mo.per_metric_scores), 3)
+        self.assertEqual(len(mo.per_metric_results), 3)
+
+    def test_multi_objective_strategy_in_result(self):
+        np.random.seed(42)
+        X, _ = make_blobs(n_samples=300, n_features=20, centers=5, random_state=42)
+        mo = multi_objective_search(KMeans, X, metrics=["silhouette", "bic"], k_min=2, k_max=10)
+        self.assertIn("multi_objective", mo.strategy)
+
+
 def run_tests():
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
@@ -703,6 +787,7 @@ def run_tests():
         TestSearchLayersAdapter,
         TestATCNDSearch, TestComparisonBaselines,
         TestConfig, TestAnimation, TestEdgeCases,
+        TestAdaptiveSelection, TestMultiObjective,
     ]
     for tc in test_classes:
         suite.addTests(loader.loadTestsFromTestCase(tc))

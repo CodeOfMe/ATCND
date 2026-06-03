@@ -11,7 +11,7 @@ def main():
         prog="atcnd",
         description="ATCND: Adaptive Topic and Cluster Number Determination",
     )
-    parser.add_argument("-V", "--version", action="version", version="atcnd 0.3.0")
+    parser.add_argument("-V", "--version", action="version", version="atcnd 0.5.0")
 
     sub = parser.add_subparsers(dest="command")
 
@@ -48,6 +48,22 @@ def main():
     bp.add_argument("--k-max", type=int, default=30)
     bp.add_argument("--n-samples", type=int, default=1000)
 
+    adp = sub.add_parser("adaptive", help="Adaptive strategy selection based on data characteristics")
+    adp.add_argument("--k-min", type=int, default=2)
+    adp.add_argument("--k-max", type=int, default=50)
+    adp.add_argument("--seed", type=int, default=42)
+    adp.add_argument("--run", action="store_true", help="Run search with recommended strategy")
+    adp.add_argument("--json", action="store_true")
+
+    mop = sub.add_parser("multi", help="Multi-objective optimization across metrics")
+    mop.add_argument("--metrics", nargs="+", default=["silhouette", "bic"],
+                     choices=["silhouette", "silhouette_knee", "bic", "combined", "silhouette_drop"])
+    mop.add_argument("--weights", nargs="+", type=float, default=None, help="Weights per metric (sum to 1)")
+    mop.add_argument("--k-min", type=int, default=2)
+    mop.add_argument("--k-max", type=int, default=50)
+    mop.add_argument("--seed", type=int, default=42)
+    mop.add_argument("--json", action="store_true")
+
     args = parser.parse_args()
 
     if args.command == "search":
@@ -58,6 +74,10 @@ def main():
         _cmd_animate(args)
     elif args.command == "benchmark":
         _cmd_benchmark(args)
+    elif args.command == "adaptive":
+        _cmd_adaptive(args)
+    elif args.command == "multi":
+        _cmd_multi(args)
     else:
         parser.print_help()
 
@@ -140,6 +160,69 @@ def _cmd_benchmark(args):
     from atcnd.benchmark import run_benchmark, print_summary
     results = run_benchmark(dataset_name=args.dataset, k_range=(args.k_min, args.k_max), n_samples=args.n_samples)
     print_summary(results)
+
+
+def _cmd_adaptive(args):
+    from atcnd import adaptive_select, adaptive_search
+    from sklearn.datasets import make_blobs
+    np.random.seed(args.seed)
+    X, _ = make_blobs(n_samples=500, n_features=50, centers=8, random_state=args.seed)
+    rec = adaptive_select(X, k_min=args.k_min, k_max=args.k_max)
+    p = rec.profile
+    if args.json:
+        print(json.dumps({
+            "strategy": rec.strategy,
+            "metric": rec.metric,
+            "confidence": round(rec.confidence, 3),
+            "profile": {"n_samples": p.n_samples, "n_features": p.n_features,
+                        "sparsity": round(p.sparsity, 3), "intrinsic_dim": p.intrinsic_dim,
+                        "separation_ratio": round(p.separation_ratio, 2)},
+            "top5": [{"strategy": r["strategy"], "metric": r["metric"], "score": round(r["score"], 3)}
+                     for r in rec.all_recommendations[:5]],
+        }, indent=2))
+    else:
+        print(f"Data profile: n={p.n_samples}, d={p.n_features}, sparsity={p.sparsity:.3f}, "
+              f"intrinsic_dim={p.intrinsic_dim}, separation={p.separation_ratio:.2f}")
+        print(f"\nRecommended: {rec.strategy} + {rec.metric} (confidence: {rec.confidence:.2f})")
+        print(f"\nTop 5 combinations:")
+        for r in rec.all_recommendations[:5]:
+            print(f"  {r['strategy']:18s} + {r['metric']:18s} = {r['score']:.3f}")
+
+    if args.run:
+        result = adaptive_search(X, k_min=args.k_min, k_max=args.k_max)
+        if args.json:
+            print(json.dumps({"optimal_k": result.optimal_k, "strategy": result.strategy}, indent=2))
+        else:
+            print(f"\nAdaptive search result: K*={result.optimal_k}, strategy={result.strategy}")
+
+
+def _cmd_multi(args):
+    from atcnd import multi_objective_search
+    from sklearn.cluster import KMeans
+    from sklearn.datasets import make_blobs
+    np.random.seed(args.seed)
+    X, _ = make_blobs(n_samples=500, n_features=50, centers=8, random_state=args.seed)
+    weights = None
+    if args.weights:
+        weights = dict(zip(args.metrics, args.weights))
+    mo = multi_objective_search(KMeans, X, metrics=args.metrics, weights=weights,
+                                 k_min=args.k_min, k_max=args.k_max)
+    if args.json:
+        print(json.dumps({
+            "optimal_k": mo.optimal_k,
+            "optimal_score": round(mo.optimal_score, 4),
+            "pareto_ks": mo.pareto_ks,
+            "weights": mo.weights,
+            "per_metric_best": {m: max(s.keys(), key=s.get) for m, s in mo.per_metric_scores.items()},
+        }, indent=2))
+    else:
+        print(f"Multi-objective result: K*={mo.optimal_k} (combined={mo.optimal_score:.4f})")
+        print(f"  Pareto frontier: {mo.pareto_ks}")
+        print(f"  Weights: {mo.weights}")
+        print(f"  Per-metric best:")
+        for metric, scores in mo.per_metric_scores.items():
+            best_k = max(scores, key=scores.get)
+            print(f"    {metric}: K*={best_k} (score={scores[best_k]:.4f})")
 
 
 if __name__ == "__main__":
