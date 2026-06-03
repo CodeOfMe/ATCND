@@ -24,6 +24,92 @@ def save_fig(fig, name):
     plt.close(fig)
 
 
+def _annotate_eval_history(ax, history, color_map, all_scores=None, ks_range=None,
+                          show_arrows=True, show_numbers=True, fontsize=7,
+                          ms=7, arrow_alpha=0.35, arrow_lw=1.0):
+    """Annotate evaluation history with numbered labels and direction arrows.
+
+    Handles duplicate K values: only the first evaluation at each K gets a
+    numbered label; subsequent re-evaluations get a small hollow marker.
+    Label positions are adjusted to avoid overlapping text.
+    """
+    if not history:
+        return
+    visited_k_count = {}
+
+    # First pass: compute label positions with collision avoidance
+    label_positions = []
+    for i, e in enumerate(history):
+        k_val = e["k"]
+        s_val = e["score"]
+        visited_k_count[k_val] = visited_k_count.get(k_val, 0) + 1
+        is_first = visited_k_count[k_val] == 1
+        label_positions.append({
+            "idx": i, "k": k_val, "score": s_val,
+            "is_first": is_first, "phase": e.get("phase", ""),
+            "visit_num": visited_k_count[k_val],
+        })
+
+    # Collision avoidance: shift labels that would overlap
+    # We collect all label (x, y) positions and check pairwise distances
+    min_dx = 1.5
+    min_dy_frac = 0.04
+    if all_scores and ks_range:
+        score_min = min(all_scores.values())
+        score_max = max(all_scores.values())
+        dy_abs = (score_max - score_min) * min_dy_frac
+    else:
+        dy_abs = 0.03
+
+    shifts = {}
+    for i in range(len(label_positions)):
+        if not label_positions[i]["is_first"]:
+            continue
+        x_i, y_i = label_positions[i]["k"], label_positions[i]["score"]
+        shift_y = 0
+        for j in range(i):
+            if not label_positions[j]["is_first"]:
+                continue
+            x_j = label_positions[j]["k"] + shifts.get(j, (0, 0))[0]
+            y_j = label_positions[j]["score"] + shifts.get(j, (0, 0))[1]
+            if abs(x_i - x_j) < min_dx and abs(y_i - y_j) < dy_abs:
+                shift_y = max(shift_y, shifts.get(j, (0, 0))[1] + dy_abs)
+        shifts[i] = (0, shift_y)
+
+    # Second pass: draw markers, labels, and arrows
+    for i, lp in enumerate(label_positions):
+        c = color_map.get(lp["phase"], "#9E9E9E")
+        k_val, s_val = lp["k"], lp["score"]
+        sy = shifts.get(i, (0, 0))[1]
+
+        if lp["is_first"]:
+            ax.plot(k_val, s_val, "o", color=c, ms=ms, zorder=5)
+            if show_numbers:
+                ax.annotate(str(i + 1), (k_val, s_val + sy),
+                             textcoords="offset points",
+                             xytext=(0, 10), ha='center', fontsize=fontsize,
+                             color=c, fontweight='bold',
+                             bbox=dict(boxstyle='round,pad=0.12', fc='white',
+                                       ec=c, lw=0.4, alpha=0.85))
+        else:
+            ax.plot(k_val, s_val, "o", color=c, ms=ms - 2, zorder=5, alpha=0.4,
+                    markerfacecolor='none', markeredgewidth=1.5)
+
+    # Arrows between consecutive evaluations
+    if show_arrows and len(history) > 1:
+        for j in range(len(history) - 1):
+            e1, e2 = history[j], history[j + 1]
+            c = color_map.get(e1.get("phase", ""), "#9E9E9E")
+            # If same K, no arrow needed (just re-evaluation)
+            if e1["k"] == e2["k"]:
+                continue
+            ax.annotate('', xy=(e2["k"], e2["score"]),
+                         xytext=(e1["k"], e1["score"]),
+                         arrowprops=dict(arrowstyle='->', color=c,
+                                         lw=arrow_lw, alpha=arrow_alpha,
+                                         connectionstyle='arc3,rad=0'))
+
+
 def plot_curve(result, title, xlabel="K", ylabel="Score", highlight=True):
     ks = sorted(result.all_scores.keys())
     scores = [result.all_scores[k] for k in ks]
@@ -37,20 +123,8 @@ def plot_curve(result, title, xlabel="K", ylabel="Score", highlight=True):
                "fibonacci":"#009688", "interpolation":"#673AB7",
                "exponential":"#FF5722", "predictive":"#E91E63",
                "probing":"#795548", "doubling":"#FF9800"}
-    history = result.search_history
-    for i, e in enumerate(history):
-        c = phase_c.get(e.get("phase", ""), "#9E9E9E")
-        ax.plot(e["k"], e["score"], "o", color=c, ms=7, zorder=5)
-        ax.annotate(str(i + 1), (e["k"], e["score"]), textcoords="offset points",
-                     xytext=(0, 9), ha='center', fontsize=7, color=c, fontweight='bold',
-                     bbox=dict(boxstyle='round,pad=0.12', fc='white', ec=c, lw=0.4, alpha=0.85))
-    if len(history) > 1:
-        for j in range(len(history) - 1):
-            e1, e2 = history[j], history[j + 1]
-            c = phase_c.get(e1.get("phase", ""), "#9E9E9E")
-            ax.annotate('', xy=(e2["k"], e2["score"]), xytext=(e1["k"], e1["score"]),
-                         arrowprops=dict(arrowstyle='->', color=c, lw=1, alpha=0.35,
-                                         connectionstyle='arc3,rad=0'))
+    _annotate_eval_history(ax, result.search_history, phase_c,
+                          all_scores=result.all_scores, ks_range=ks)
     ax.set_xlabel(xlabel, fontsize=12); ax.set_ylabel(ylabel, fontsize=12)
     ax.set_title(title, fontsize=13); ax.legend(fontsize=10); ax.grid(True, alpha=.3)
     return fig
@@ -467,18 +541,20 @@ def demo_comparison():
         ax.set_title(f"{label}\nK*={r.optimal_k}, evals={n} ({pct})", fontsize=11)
         ax.set_xlabel("K"); ax.grid(True, alpha=.3)
         if i % 4 == 0: ax.set_ylabel("Silhouette")
-        history = r.search_history
-        for j, e in enumerate(history):
-            ax.plot(e["k"], e["score"], "o", color=colors[s], ms=6, zorder=5)
-            ax.annotate(str(j + 1), (e["k"], e["score"]), textcoords="offset points",
-                         xytext=(0, 8), ha='center', fontsize=6.5, color=colors[s], fontweight='bold',
-                         bbox=dict(boxstyle='round,pad=0.1', fc='white', ec=colors[s], lw=0.4, alpha=0.85))
-        if len(history) > 1:
-            for j in range(len(history) - 1):
-                e1, e2 = history[j], history[j + 1]
-                ax.annotate('', xy=(e2["k"], e2["score"]), xytext=(e1["k"], e1["score"]),
-                             arrowprops=dict(arrowstyle='->', color=colors[s], lw=0.8, alpha=0.3,
-                                             connectionstyle='arc3,rad=0'))
+        is_grid = (s == "grid")
+        show_nums = not is_grid
+        phase_c = {"boundary":"#795548", "binary_search":"#4CAF50",
+                   "golden_section":"#FF9800", "ternary_search":"#9C27B0",
+                   "grid":"#607D8B", "refinement":"#E91E63", "final_sweep":"#00BCD4",
+                   "fibonacci":"#009688", "interpolation":"#673AB7",
+                   "exponential":"#FF5722", "predictive":"#E91E63",
+                   "probing":"#795548", "doubling":"#FF9800"}
+        _annotate_eval_history(ax, r.search_history,
+                              {**phase_c, **{s: colors[s]}},
+                              all_scores=r.all_scores, ks_range=ks,
+                              show_numbers=show_nums, show_arrows=not is_grid,
+                              ms=6 if not is_grid else 3, fontsize=6.5,
+                              arrow_alpha=0.3, arrow_lw=0.8)
     plt.suptitle("ATCND: All Search Strategies on K-Means (K_true=8)", fontsize=14, y=1.01)
     plt.tight_layout()
     save_fig(fig, "14_comparison_strategies")
