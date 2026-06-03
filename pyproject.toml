@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atcnd"
+dynamic = ["version"]
+description = "Adaptive Topic and Cluster Number Determination via structured search"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0"
+authors = [
+  {name = "CodeOfMe", email = "wedonotuse@outlook.com"}
+]
+dependencies = [
+  "numpy",
+  "scikit-learn",
+]
+keywords = ["topic-modeling", "lda", "nmf", "kmeans", "cluster-number", "binary-search", "golden-section", "model-selection"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Text Processing :: Linguistic",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "atcnd.__version__"}
+
+[project.scripts]
+atcnd = "atcnd.cli:main"
+
+[project.urls]
+"Homepage" = "https://github.com/CodeOfMe/ATCND"
+"Bug Tracker" = "https://github.com/CodeOfMe/ATCND/issues"
+
+[project.optional-dependencies]
+gensim = ["gensim>=4.0"]
+top2vec = ["top2vec"]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "ruff",
+  "black",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.black]
+line-length = 120
+target-version = ["py310"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
