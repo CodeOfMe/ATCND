@@ -88,12 +88,41 @@ atcnd benchmark --dataset blobs --k-min 2 --k-max 30
 
 ## 搜索策略
 
-| 策略 | 复杂度 | 适用场景 | 评估次数（K 在 [2,30]）|
-|------|--------|---------|----------------------|
-| 网格搜索 | O(N) | 基线对比 | 29 |
-| 二分搜索 | O(log N) | 单峰目标函数 | ~6 |
-| 黄金分割 | O(log_phi N) | 一般目标函数 | ~7 |
-| 三分搜索 | O(log_{1.5} N) | 多步目标函数 | ~8 |
+| 策略 | 复杂度 | 适用场景 | 评估次数（K 在 [2,30]）| 比Grid减少 |
+|------|--------|---------|----------------------|-----------|
+| 网格搜索 | O(N) | 基线对比 | 29 | - |
+| 二分搜索 | O(log N) | 单峰目标函数 | 9 | 69% |
+| 黄金分割 | O(log_phi N) | 一般目标函数 | 12 | 59% |
+| 三分搜索 | O(log_{1.5} N) | 多步目标函数 | 14 | 52% |
+| Fibonacci | O(log_phi N) | 离散单峰（最优） | 10 | 66% |
+| 插值搜索 | O(log log N)* | 平滑目标函数 | 11 | 62% |
+| 指数搜索 | O(log K*) | K范围未知 | 10 | 66% |
+| 预测搜索 | O(1)探测+O(log N) | 有数据驱动的热启动 | 7 | 76% |
+
+## 适配器（NumPy / Pandas / SciPy / Sklearn / PyTorch）
+
+| 库 | 适配器 | 参数 | 度量 |
+|----|--------|------|------|
+| NumPy | `search_bins` | 直方图分箱数 | AIC |
+| SciPy/sklearn | `search_gmm_components` | GMM分量数 | BIC |
+| SciPy | `search_knots` | 平滑参数 | -MSE+惩罚 |
+| Pandas | `search_rolling_window` | 滚动窗口 | BIC |
+| Pandas+NumPy | `search_dataframe_bins` | DataFrame分箱 | AIC |
+| sklearn | `search_model(KMeans)` | K-Means聚类数 | 轮廓系数 |
+| sklearn | `search_neighbors` | KNN k | CV准确率 |
+| sklearn | `search_components` | PCA分量数 | 累积方差 |
+| sklearn | `search_trees` | 随机森林树数 | CV准确率 |
+| sklearn | `search_dbscan_eps` | DBSCAN eps | 轮廓系数 |
+| Gensim+sklearn | `search_nmf_topics` | NMF主题数 | c_v一致性 |
+| PyTorch | `search_hidden` | 隐藏层大小 | -loss |
+| PyTorch | `search_layers` | 隐藏层数 | -loss |
+
+运行所有演示并生成图片（SVG + PDF + PNG）：
+
+```bash
+python examples/demo_all.py
+# 输出: examples/figures/*.{svg,pdf,png}
+```
 
 ## 质量指标
 

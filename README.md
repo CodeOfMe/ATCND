@@ -88,12 +88,41 @@ atcnd benchmark --dataset blobs --k-min 2 --k-max 30
 
 ## Search Strategies
 
-| Strategy | Complexity | Best for | Evaluations (K in [2,30]) |
-|----------|-----------|----------|--------------------------|
-| Grid | O(N) | Baseline comparison | 29 |
-| Binary | O(log N) | Unimodal objectives | ~6 |
-| Golden Section | O(log_phi N) | General objectives | ~7 |
-| Ternary | O(log_{1.5} N) | Multi-step objectives | ~8 |
+| Strategy | Complexity | Best for | Evals (K in [2,30]) | vs Grid |
+|----------|-----------|----------|---------------------|---------|
+| Grid | O(N) | Baseline comparison | 29 | - |
+| Binary | O(log N) | Unimodal objectives | 9 | 69% |
+| Golden Section | O(log_phi N) | General objectives | 12 | 59% |
+| Ternary | O(log_{1.5} N) | Multi-step objectives | 14 | 52% |
+| Fibonacci | O(log_phi N) | Discrete unimodal (optimal) | 10 | 66% |
+| Interpolation | O(log log N)* | Smooth objectives | 11 | 62% |
+| Exponential | O(log K*) | Unknown K range | 10 | 66% |
+| Predictive | O(1) probe + O(log N) | With data-driven hot-start | 7 | 76% |
+
+## Adapters (NumPy / Pandas / SciPy / Sklearn / PyTorch)
+
+| Library | Adapter | Parameter | Metric |
+|---------|---------|-----------|--------|
+| NumPy | `search_bins` | Histogram bins | AIC |
+| SciPy/sklearn | `search_gmm_components` | GMM components | BIC |
+| SciPy | `search_knots` | Smoothing parameter | -MSE+penalty |
+| Pandas | `search_rolling_window` | Rolling window | BIC |
+| Pandas+NumPy | `search_dataframe_bins` | DataFrame bins | AIC |
+| sklearn | `search_model(KMeans)` | K-Means clusters | silhouette |
+| sklearn | `search_neighbors` | KNN k | CV accuracy |
+| sklearn | `search_components` | PCA components | cum. variance |
+| sklearn | `search_trees` | RF tree count | CV accuracy |
+| sklearn | `search_dbscan_eps` | DBSCAN eps | silhouette |
+| Gensim+sklearn | `search_nmf_topics` | NMF topics | c_v coherence |
+| PyTorch | `search_hidden` | Hidden layer size | -loss |
+| PyTorch | `search_layers` | Hidden layer count | -loss |
+
+Run all demos with figures (SVG + PDF + PNG):
+
+```bash
+python examples/demo_all.py
+# Output: examples/figures/*.{svg,pdf,png}
+```
 
 ## Quality Metrics
 

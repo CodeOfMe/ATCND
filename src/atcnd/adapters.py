@@ -81,17 +81,33 @@ def search_bins(
     k_min: int = 3,
     k_max: int = 100,
     strategy: str = "binary",
-    method: str = "freedman",
+    method: str = "aic",
     max_iter: int = 30,
     n_candidates: int = 3,
 ) -> SearchResult:
+    from scipy.stats import norm
+
     def f(n_bins):
-        counts, _ = np.histogram(data, bins=n_bins)
+        counts, edges = np.histogram(data, bins=n_bins)
+        if method == "aic":
+            n = len(data)
+            widths = np.diff(edges)
+            if np.any(widths <= 0) or counts.sum() == 0:
+                return -1e10
+            densities = counts / (n * widths)
+            loglik = np.sum(counts[counts > 0] * np.log(densities[counts > 0]))
+            return loglik - n_bins
+        if method == "balancing":
+            if counts.sum() == 0 or len(counts) < 2:
+                return -1e10
+            probs = counts / counts.sum()
+            uniform = 1.0 / len(counts)
+            return -np.sum((probs - uniform) ** 2)
         if method == "freedman":
             from scipy.stats import entropy
             probs = counts / counts.sum() if counts.sum() > 0 else counts
             probs = probs[probs > 0]
-            return entropy(probs)
+            return -entropy(probs)
         if method == "sturges":
             return -np.sum(np.diff(counts) ** 2)
         if method == "custom":
@@ -141,21 +157,28 @@ def search_knots(
     max_iter: int = 30,
     n_candidates: int = 3,
 ) -> SearchResult:
-    from scipy.interpolate import BSpline, make_interp_spline
+    from scipy.interpolate import make_interp_spline
     from sklearn.metrics import mean_squared_error
 
     order = np.argsort(x)
-    x_sorted = x[order]
-    y_sorted = y[order]
+    x_sorted = np.asarray(x)[order]
+    y_sorted = np.asarray(y)[order]
+    n = len(x_sorted)
 
-    def f(n_knots):
-        n_knots = max(degree + 2, n_knots)
+    def f(n_internal):
+        n_internal = max(degree + 1, n_internal)
         try:
-            idx = np.linspace(0, len(x_sorted) - 1, n_knots, dtype=int)
+            n_total = 2 * (degree + 1) + n_internal
+            if n_total > n:
+                return -1e10
+            idx = np.linspace(degree + 1, n - degree - 2, n_internal, dtype=int)
+            idx = np.unique(idx)
             knots = x_sorted[idx]
             spl = make_interp_spline(x_sorted, y_sorted, k=degree, t=knots)
             y_pred = spl(x_sorted)
-            return -mean_squared_error(y_sorted, y_pred)
+            mse = mean_squared_error(y_sorted, y_pred)
+            penalty = n_internal / n
+            return -(mse + 0.01 * penalty)
         except Exception:
             return -1e10
 
@@ -168,7 +191,7 @@ def search_window(
     k_min: int = 2,
     k_max: int = 100,
     strategy: str = "binary",
-    method: str = "smoothness",
+    method: str = "bic",
     max_iter: int = 30,
     n_candidates: int = 3,
 ) -> SearchResult:
@@ -183,6 +206,12 @@ def search_window(
                 return -1e10
             diff2 = np.diff(smoothed, 2)
             return -np.var(diff2)
+        if method == "bic":
+            kernel = np.ones(w) / w
+            smoothed = np.convolve(s, kernel, mode='valid')
+            n = min(len(smoothed), len(s))
+            ssd = np.sum((smoothed[:n] - s[:n]) ** 2)
+            return -(ssd + w * np.log(len(s)))
         if method == "ssd":
             kernel = np.ones(w) / w
             smoothed = np.convolve(s, kernel, mode='valid')
@@ -390,19 +419,33 @@ def search_dataframe_bins(
     k_min: int = 3,
     k_max: int = 100,
     strategy: str = "binary",
-    method: str = "entropy",
+    method: str = "aic",
     max_iter: int = 30,
     n_candidates: int = 3,
 ) -> SearchResult:
     data = df[column].dropna().values
 
     def f(n_bins):
-        counts, _ = np.histogram(data, bins=n_bins)
+        counts, edges = np.histogram(data, bins=n_bins)
+        if method == "aic":
+            n = len(data)
+            widths = np.diff(edges)
+            if np.any(widths <= 0) or counts.sum() == 0:
+                return -1e10
+            densities = counts / (n * widths)
+            loglik = np.sum(counts[counts > 0] * np.log(densities[counts > 0]))
+            return loglik - n_bins
+        if method == "balancing":
+            if counts.sum() == 0 or len(counts) < 2:
+                return -1e10
+            probs = counts / counts.sum()
+            uniform = 1.0 / len(counts)
+            return -np.sum((probs - uniform) ** 2)
         if method == "entropy":
             from scipy.stats import entropy
             probs = counts / counts.sum() if counts.sum() > 0 else counts
             probs = probs[probs > 0]
-            return entropy(probs)
+            return -entropy(probs)
         if method == "std":
             return -np.std(counts)
         raise ValueError(f"Unknown method: {method}")
@@ -416,7 +459,7 @@ def search_rolling_window(
     k_min: int = 2,
     k_max: int = 100,
     strategy: str = "binary",
-    method: str = "smoothness",
+    method: str = "bic",
     max_iter: int = 30,
     n_candidates: int = 3,
 ) -> SearchResult:
@@ -431,6 +474,11 @@ def search_rolling_window(
                 return -1e10
             diff2 = np.diff(smoothed.values, 2)
             return -np.var(diff2)
+        if method == "bic":
+            smoothed = s.rolling(window=window, center=True).mean().dropna()
+            n = min(len(smoothed), len(s))
+            ssd = np.sum((smoothed.values[:n] - s.values[:n]) ** 2)
+            return -(ssd + window * np.log(len(s)))
         if method == "ssd":
             smoothed = s.rolling(window=window, center=True).mean().dropna()
             n = min(len(smoothed), len(s))
