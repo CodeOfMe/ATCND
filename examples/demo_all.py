@@ -27,80 +27,37 @@ def save_fig(fig, name):
 def _annotate_eval_history(ax, history, color_map, all_scores=None, ks_range=None,
                           show_arrows=True, show_numbers=True, fontsize=7,
                           ms=7, arrow_alpha=0.35, arrow_lw=1.0):
-    """Annotate evaluation history with numbered labels and direction arrows.
-
-    Handles duplicate K values: only the first evaluation at each K gets a
-    numbered label; subsequent re-evaluations get a small hollow marker.
-    Label positions are adjusted to avoid overlapping text.
+    """Annotate evaluation history with step numbers and direction arrows.
+    Groups all steps at the same K position, showing multiple step numbers
+    as a comma-separated list on one label.
     """
     if not history:
         return
-    visited_k_count = {}
 
-    # First pass: compute label positions with collision avoidance
-    label_positions = []
+    # Group steps by K value
+    from collections import defaultdict
+    k_groups = defaultdict(list)
     for i, e in enumerate(history):
-        k_val = e["k"]
-        s_val = e["score"]
-        visited_k_count[k_val] = visited_k_count.get(k_val, 0) + 1
-        is_first = visited_k_count[k_val] == 1
-        label_positions.append({
-            "idx": i, "k": k_val, "score": s_val,
-            "is_first": is_first, "phase": e.get("phase", ""),
-            "visit_num": visited_k_count[k_val],
-        })
+        k_groups[e["k"]].append(i + 1)
 
-    # Collision avoidance: shift labels that would overlap
-    # We collect all label (x, y) positions and check pairwise distances
-    min_dx = 1.5
-    min_dy_frac = 0.04
-    if all_scores and ks_range:
-        score_min = min(all_scores.values())
-        score_max = max(all_scores.values())
-        dy_abs = (score_max - score_min) * min_dy_frac
-    else:
-        dy_abs = 0.03
+    # Draw labels: one label per unique K, with all step numbers
+    for k_val, steps in k_groups.items():
+        s_val = history[steps[-1] - 1]["score"]
+        c = color_map.get(history[steps[-1] - 1].get("phase", ""), "#9E9E9E")
+        ax.plot(k_val, s_val, "o", color=c, ms=ms, zorder=5)
+        if show_numbers:
+            label = ",".join(str(s) for s in steps)
+            ax.annotate(label, (k_val, s_val), textcoords="offset points",
+                         xytext=(0, 10), ha='center', fontsize=fontsize,
+                         color=c, fontweight='bold',
+                         bbox=dict(boxstyle='round,pad=0.12', fc='white', ec=c,
+                                   lw=0.4, alpha=0.85))
 
-    shifts = {}
-    for i in range(len(label_positions)):
-        if not label_positions[i]["is_first"]:
-            continue
-        x_i, y_i = label_positions[i]["k"], label_positions[i]["score"]
-        shift_y = 0
-        for j in range(i):
-            if not label_positions[j]["is_first"]:
-                continue
-            x_j = label_positions[j]["k"] + shifts.get(j, (0, 0))[0]
-            y_j = label_positions[j]["score"] + shifts.get(j, (0, 0))[1]
-            if abs(x_i - x_j) < min_dx and abs(y_i - y_j) < dy_abs:
-                shift_y = max(shift_y, shifts.get(j, (0, 0))[1] + dy_abs)
-        shifts[i] = (0, shift_y)
-
-    # Second pass: draw markers, labels, and arrows
-    for i, lp in enumerate(label_positions):
-        c = color_map.get(lp["phase"], "#9E9E9E")
-        k_val, s_val = lp["k"], lp["score"]
-        sy = shifts.get(i, (0, 0))[1]
-
-        if lp["is_first"]:
-            ax.plot(k_val, s_val, "o", color=c, ms=ms, zorder=5)
-            if show_numbers:
-                ax.annotate(str(i + 1), (k_val, s_val + sy),
-                             textcoords="offset points",
-                             xytext=(0, 10), ha='center', fontsize=fontsize,
-                             color=c, fontweight='bold',
-                             bbox=dict(boxstyle='round,pad=0.12', fc='white',
-                                       ec=c, lw=0.4, alpha=0.85))
-        else:
-            ax.plot(k_val, s_val, "o", color=c, ms=ms - 2, zorder=5, alpha=0.4,
-                    markerfacecolor='none', markeredgewidth=1.5)
-
-    # Arrows between consecutive evaluations
+    # Arrows between consecutive evaluations (skip same-K)
     if show_arrows and len(history) > 1:
         for j in range(len(history) - 1):
             e1, e2 = history[j], history[j + 1]
             c = color_map.get(e1.get("phase", ""), "#9E9E9E")
-            # If same K, no arrow needed (just re-evaluation)
             if e1["k"] == e2["k"]:
                 continue
             ax.annotate('', xy=(e2["k"], e2["score"]),
