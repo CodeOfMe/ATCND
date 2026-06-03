@@ -14,10 +14,13 @@ authors = [
 ]
 dependencies = [
   "numpy",
+  "scipy",
   "scikit-learn",
   "gensim>=4.0",
+  "pandas",
+  "matplotlib",
 ]
-keywords = ["topic-modeling", "lda", "nmf", "kmeans", "cluster-number", "binary-search", "golden-section", "model-selection"]
+keywords = ["topic-modeling", "lda", "nmf", "kmeans", "cluster-number", "binary-search", "golden-section", "fibonacci-search", "model-selection"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Science/Research",
@@ -30,6 +33,21 @@ classifiers = [
   "Topic :: Text Processing :: Linguistic",
 ]
 
+[project.optional-dependencies]
+torch = ["torch>=2.0"]
+top2vec = ["top2vec"]
+all = [
+  "torch>=2.0",
+  "top2vec",
+]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "ruff",
+  "black",
+  "torch>=2.0",
+]
+
 [tool.setuptools.dynamic]
 version = {attr = "atcnd.__version__"}
 
@@ -39,15 +57,6 @@ atcnd = "atcnd.cli:main"
 [project.urls]
 "Homepage" = "https://github.com/CodeOfMe/ATCND"
 "Bug Tracker" = "https://github.com/CodeOfMe/ATCND/issues"
-
-[project.optional-dependencies]
-top2vec = ["top2vec"]
-dev = [
-  "pytest",
-  "pytest-cov",
-  "ruff",
-  "black",
-]
 
 [tool.ruff]
 line-length = 120

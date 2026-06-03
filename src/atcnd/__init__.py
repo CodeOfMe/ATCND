@@ -16,7 +16,16 @@ from .adapters import (
     search_knots,
     search_window,
     search_param,
+    search_hidden,
+    search_layers,
+    search_trees,
+    search_dbscan_eps,
+    search_gmm_components,
+    search_dataframe_bins,
+    search_rolling_window,
+    search_nmf_topics,
 )
+from .search import estimate_k_n_clusters, estimate_k_n_topics
 from .animate import animate_search, animate_search_frames
 from .comparison import (
     baseline_grid,
@@ -32,7 +41,7 @@ from .comparison import (
     print_comparison_table,
 )
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "search",
@@ -49,6 +58,16 @@ __all__ = [
     "search_knots",
     "search_window",
     "search_param",
+    "search_hidden",
+    "search_layers",
+    "search_trees",
+    "search_dbscan_eps",
+    "search_gmm_components",
+    "search_dataframe_bins",
+    "search_rolling_window",
+    "search_nmf_topics",
+    "estimate_k_n_clusters",
+    "estimate_k_n_topics",
     "animate_search",
     "animate_search_frames",
     "baseline_grid",

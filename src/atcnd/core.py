@@ -8,7 +8,7 @@ to the pure search algorithms in search.py.
 import numpy as np
 from typing import Optional, Tuple, List, Dict, Any, Union
 from dataclasses import dataclass, field
-from .search import search as pure_search, SearchResult
+from .search import search as pure_search, SearchResult, predictive_search, estimate_k_n_clusters, estimate_k_n_topics
 
 
 @dataclass
@@ -218,7 +218,7 @@ def _validate_config(config: ATCNDConfig):
         raise ValueError("k_max must be > k_min")
     if config.model_type not in ("lda", "nmf", "kmeans"):
         raise ValueError(f"model_type must be lda, nmf, or kmeans, got {config.model_type}")
-    if config.search_strategy not in ("binary", "golden_section", "ternary", "grid"):
+    if config.search_strategy not in ("binary", "golden_section", "ternary", "fibonacci", "interpolation", "exponential", "predictive", "grid"):
         raise ValueError(f"search_strategy must be binary, golden_section, ternary, or grid")
     valid_metrics = ("coherence", "perplexity", "silhouette", "reconstruction", "combined")
     if config.metric not in valid_metrics:
@@ -244,9 +244,24 @@ def atcnd_search(
 
     f, model_cache = _build_objective(X, feature_names, texts, config)
 
-    sr = pure_search(f, k_min=config.k_min, k_max=config.k_max,
-                     strategy=config.search_strategy, max_iter=config.max_iter,
-                     n_candidates=config.n_candidates)
+    hot_start = None
+    if config.search_strategy == "predictive":
+        try:
+            if config.model_type == "kmeans":
+                hot_start = estimate_k_n_clusters(X, config.k_min, config.k_max)
+            else:
+                hot_start = estimate_k_n_topics(X, config.k_min, config.k_max)
+        except Exception:
+            pass
+
+    if config.search_strategy == "predictive":
+        sr = predictive_search(f, k_min=config.k_min, k_max=config.k_max,
+                               hot_start=hot_start, max_iter=config.max_iter,
+                               n_candidates=config.n_candidates)
+    else:
+        sr = pure_search(f, k_min=config.k_min, k_max=config.k_max,
+                         strategy=config.search_strategy, max_iter=config.max_iter,
+                         n_candidates=config.n_candidates)
 
     best_model = model_cache.get(sr.optimal_k)
     if best_model is None:
