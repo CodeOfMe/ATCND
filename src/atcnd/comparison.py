@@ -200,13 +200,18 @@ def baseline_gmeans(X, k_min=2, k_max=30, alpha=0.05, random_state=42):
             proj = sub.cluster_centers_[0] - sub.cluster_centers_[1]
             proj = proj / (np.linalg.norm(proj) + 1e-10)
             projections = X_c @ proj
-            result = anderson(projections, dist='norm')
-            if len(result.significance_level) > 0:
-                sig_level = result.significance_level[-1] if len(result.significance_level) < 5 else result.significance_level[2]
-                crit_val = result.critical_values[-1] if len(result.critical_values) < 5 else result.critical_values[2]
-                if result.statistic > crit_val:
+            try:
+                result = anderson(projections, dist='norm', method='interpolate')
+                if result.pvalue < 0.05:
                     new_k += 1
                     improved = True
+            except TypeError:
+                result = anderson(projections, dist='norm')
+                if len(result.significance_level) > 0:
+                    cv = result.critical_values[-1] if len(result.critical_values) < 5 else result.critical_values[2]
+                    if result.statistic > cv:
+                        new_k += 1
+                        improved = True
 
         if new_k > k:
             k = new_k
