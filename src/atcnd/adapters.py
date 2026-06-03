@@ -22,22 +22,102 @@ def search_model(
     n_candidates: int = 3,
 ) -> SearchResult:
     fit_kwargs = fit_kwargs or {}
+    X_arr = X.toarray() if hasattr(X, 'toarray') else np.asarray(X)
+
+    if metric in ("silhouette_knee", "bic", "combined", "silhouette_drop"):
+        # For knee/BIC/combined/drop, we need to evaluate all K first, then find optimum
+        all_scores = {}
+        all_models = {}
+        for k in range(k_min, k_max + 1):
+            model = model_class(**{param_name: k}, **fit_kwargs)
+            model.fit(X_arr)
+            labels = model.predict(X_arr) if hasattr(model, 'predict') else model.labels_
+            from sklearn.metrics import silhouette_score
+            sil = silhouette_score(X_arr, labels)
+            all_scores[k] = sil
+            all_models[k] = model
+
+        ks = list(all_scores.keys())
+        scores = [all_scores[k] for k in ks]
+
+        if metric == "silhouette_knee":
+            # Knee detection: point of maximum distance from line connecting endpoints
+            x = np.array(ks, dtype=float)
+            y = np.array(scores)
+            x_norm = (x - x.min()) / (x.max() - x.min())
+            y_norm = (y - y.min()) / (y.max() - y.min())
+            line_vec = np.array([x_norm[-1] - x_norm[0], y_norm[-1] - y_norm[0]])
+            line_len = np.linalg.norm(line_vec)
+            if line_len == 0:
+                best_k = ks[0]
+            else:
+                line_unitvec = line_vec / line_len
+                distances = []
+                for i in range(len(x_norm)):
+                    vec = np.array([x_norm[i] - x_norm[0], y_norm[i] - y_norm[0]])
+                    proj = np.dot(vec, line_unitvec)
+                    proj_vec = proj * line_unitvec
+                    dist = np.linalg.norm(vec - proj_vec)
+                    distances.append(dist)
+                best_k = ks[int(np.argmax(distances))]
+            best_score = all_scores[best_k]
+        elif metric == "bic":
+            n, d = X_arr.shape
+            best_k = k_min
+            best_bic = np.inf
+            for k in ks:
+                inertia = all_models[k].inertia_
+                bic = 2 * d * k * np.log(n) + n * np.log(inertia / n)
+                if bic < best_bic:
+                    best_bic = bic
+                    best_k = k
+            best_score = all_scores[best_k]
+        elif metric == "combined":
+            # silhouette * (1 - 1/k) — balances quality with cluster count
+            best_k = max(all_scores, key=lambda k: all_scores[k] * (1 - 1/k))
+            best_score = all_scores[best_k]
+        elif metric == "silhouette_drop":
+            # Find K where the relative drop in silhouette is largest
+            # This identifies the "elbow" where adding more clusters no longer helps
+            drops = []
+            for i in range(1, len(scores)):
+                if scores[i-1] > 0:
+                    drop = (scores[i-1] - scores[i]) / scores[i-1]
+                else:
+                    drop = 0
+                drops.append(drop)
+            # Find the first significant drop (local maximum in drops)
+            if drops:
+                best_idx = int(np.argmax(drops)) + 1  # +1 because drops[i] corresponds to ks[i+1]
+                best_k = ks[best_idx]
+            else:
+                best_k = ks[0]
+            best_score = all_scores[best_k]
+
+        # Build SearchResult with all evaluations
+        sr = SearchResult(
+            optimal_k=best_k,
+            optimal_score=best_score,
+            all_scores=all_scores,
+            search_history=[{"k": k, "score": s, "phase": "grid"} for k, s in all_scores.items()],
+            strategy=strategy,
+        )
+        return sr
 
     def f(k):
         model = model_class(**{param_name: k}, **fit_kwargs)
-        model.fit(X)
+        model.fit(X_arr)
         if callable(metric):
-            return metric(model, X)
+            return metric(model, X_arr)
         if metric == "silhouette":
             from sklearn.metrics import silhouette_score
-            labels = model.predict(X) if hasattr(model, 'predict') else model.labels_
-            X_dense = X.toarray() if hasattr(X, 'toarray') else np.asarray(X)
-            return silhouette_score(X_dense, labels)
+            labels = model.predict(X_arr) if hasattr(model, 'predict') else model.labels_
+            return silhouette_score(X_arr, labels)
         if metric == "inertia":
             return -model.inertia_
         if metric == "reconstruction":
             if hasattr(model, 'score'):
-                return model.score(X)
+                return model.score(X_arr)
             if hasattr(model, 'inertia_'):
                 return -model.inertia_
             return 0.0

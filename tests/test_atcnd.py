@@ -317,6 +317,30 @@ class TestSearchModelAdapter(unittest.TestCase):
                           k_min=2, k_max=10, metric="inertia")
         self.assertGreaterEqual(sr.optimal_k, 2)
 
+    def test_search_model_with_knee(self):
+        sr = search_model(KMeans, self.X, param_name="n_clusters",
+                          k_min=2, k_max=15, metric="silhouette_knee")
+        self.assertGreaterEqual(sr.optimal_k, 2)
+        self.assertLessEqual(sr.optimal_k, 15)
+
+    def test_search_model_with_bic(self):
+        sr = search_model(KMeans, self.X, param_name="n_clusters",
+                          k_min=2, k_max=15, metric="bic")
+        self.assertGreaterEqual(sr.optimal_k, 2)
+        self.assertLessEqual(sr.optimal_k, 15)
+
+    def test_search_model_with_combined(self):
+        sr = search_model(KMeans, self.X, param_name="n_clusters",
+                          k_min=2, k_max=15, metric="combined")
+        self.assertGreaterEqual(sr.optimal_k, 2)
+        self.assertLessEqual(sr.optimal_k, 15)
+
+    def test_search_model_with_drop(self):
+        sr = search_model(KMeans, self.X, param_name="n_clusters",
+                          k_min=2, k_max=15, metric="silhouette_drop")
+        self.assertGreaterEqual(sr.optimal_k, 2)
+        self.assertLessEqual(sr.optimal_k, 15)
+
     def test_search_bins(self):
         data = np.random.RandomState(42).randn(1000)
         sr = search_bins(data, k_min=3, k_max=30)
