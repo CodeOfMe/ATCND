@@ -118,7 +118,7 @@ python examples/demo_all.py
 - **8 search strategies**: grid, binary, golden section, ternary, Fibonacci, interpolation, exponential, predictive
 - **15 adapters** spanning NumPy, SciPy, scikit-learn, PyTorch, Gensim, and Pandas
 - **3 model families**: LDA, NMF, K-Means (plus GMM, PCA, DBSCAN, etc.)
-- **5 quality metrics**: silhouette, silhouette\_knee, bic, combined, silhouette\_drop
+- **5+5 quality metrics**: general (silhouette, coherence c\_v, perplexity, reconstruction, combined) + K-Means-specific (silhouette\_knee, bic, combined, silhouette\_drop)
 - **Adaptive strategy selection**: automatically recommends best strategy + metric based on data profile (dimensionality, sparsity, separation)
 - **Multi-objective optimization**: simultaneously optimize multiple metrics (e.g., silhouette + BIC) with Pareto frontier
 - **Ranked candidate set**: returns multiple optimal K values (handles plateaus, ties, multi-optima)
