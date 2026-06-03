@@ -19,12 +19,6 @@ ATCND is a model-agnostic framework that determines the optimal number of topics
 pip install atcnd
 ```
 
-For gensim-based coherence metrics:
-
-```bash
-pip install atcnd[gensim]
-```
-
 From source:
 
 ```bash
