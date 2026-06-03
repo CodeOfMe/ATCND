@@ -9,6 +9,94 @@
 
 ATCND is a model-agnostic framework that determines the optimal number of topics (for LDA/NMF) or clusters (for K-Means) by treating K selection as a structured search problem over a user-specified integer range. Prior to ATCND, no model-agnostic method with correct K\* achieved sub-linear evaluation count: exhaustive grid search (the SOTA baseline in the model-agnostic + exact-K class) requires O(K_max − K_min) model evaluations. ATCND applies eight search strategies to achieve O(log(K_max − K_min)) evaluations — 59–79% fewer than grid search while matching its K\* accuracy.
 
+## 8-Strategy Comparison
+
+<p align="center">
+  <img src="examples/figures/14_comparison_strategies.png" width="800" alt="ATCND: All 8 search strategies on K-Means (K_true=8)">
+</p>
+
+Benchmark on K-Means (SyntheticBlobs, K\_true=8, range [2,30]):
+
+| Strategy | Complexity | Evals | vs Grid |
+|----------|-----------|-------|---------|
+| Grid | O(N) | 29 | — |
+| Binary | O(log N) | 9 | 69% |
+| Golden Section | O(log\_φ N) | 12 | 59% |
+| Ternary | O(log\_{1.5} N) | 14 | 52% |
+| Fibonacci | O(log\_φ N) | 10 | 66% |
+| Interpolation | O(log log N)\* | 11 | 62% |
+| Exponential | O(log K\*) | 10 | 66% |
+| **Predictive** | **O(1)+O(log Δ)** | **7** | **76%** |
+
+All strategies recover K\*=8 with identical silhouette score. Predictive search with PCA hot-start achieves the fewest evaluations.
+
+## Real-World Demos
+
+### K-Means on Iris (3D)
+
+<p align="center">
+  <img src="examples/figures/01_iris_kmeans_3d.png" width="400" alt="K-Means on Iris (K*=2)">
+  <img src="examples/figures/01_iris_kmeans_curve.png" width="400" alt="Iris K-Means search curve">
+</p>
+
+### GMM on Wine (3D)
+
+<p align="center">
+  <img src="examples/figures/02_wine_gmm_3d.png" width="400" alt="GMM on Wine (K*=2)">
+  <img src="examples/figures/02_wine_gmm_curve.png" width="400" alt="Wine GMM search curve">
+</p>
+
+### PCA on Digits (3D)
+
+<p align="center">
+  <img src="examples/figures/03_digits_pca_3d.png" width="400" alt="PCA on Digits (K*=31 for 95% variance)">
+  <img src="examples/figures/03_digits_pca_curve.png" width="400" alt="Digits PCA cumulative variance">
+</p>
+
+### DBSCAN on Two-Moons
+
+<p align="center">
+  <img src="examples/figures/04_moons_dbscan.png" width="400" alt="DBSCAN on Two-Moons">
+  <img src="examples/figures/04_moons_dbscan_curve.png" width="400" alt="DBSCAN eps search curve">
+</p>
+
+### Optimal Histogram Bins (AIC)
+
+<p align="center">
+  <img src="examples/figures/07_numpy_bins_compare.png" width="450" alt="ATCND optimal bins vs Sturges rule">
+</p>
+
+### Smoothing Spline (SciPy)
+
+<p align="center">
+  <img src="examples/figures/08_scipy_spline_fit.png" width="450" alt="Smoothing spline with ATCND-selected parameter">
+</p>
+
+### Rolling Window (Pandas)
+
+<p align="center">
+  <img src="examples/figures/09_pandas_rolling_fit.png" width="450" alt="Optimal rolling window on time series">
+</p>
+
+### NMF Topic Count (Gensim)
+
+<p align="center">
+  <img src="examples/figures/11_gensim_nmf.png" width="450" alt="NMF topic search with c_v coherence">
+</p>
+
+### PyTorch Hidden Layer Size
+
+<p align="center">
+  <img src="examples/figures/12_torch_hidden.png" width="450" alt="PyTorch hidden layer size search">
+</p>
+
+Run all demos with figures (SVG + PDF + PNG):
+
+```bash
+python examples/demo_all.py
+# Output: examples/figures/*.{svg,pdf,png}
+```
+
 ## Key Features
 
 - **8 search strategies**: grid, binary, golden section, ternary, Fibonacci, interpolation, exponential, predictive
@@ -140,26 +228,16 @@ atcnd benchmark --dataset blobs --k-min 2 --k-max 30
 atcnd benchmark --dataset blobs --k-min 2 --k-max 30 --all-strategies
 ```
 
-## Search Strategies
-
-| Strategy | Complexity | Best for | Evals (K∈[2,30]) | vs Grid |
-|----------|-----------|----------|-------------------|---------|
-| Grid | O(N) | Baseline comparison | 29 | — |
-| Binary | O(log N) | Unimodal objectives | 9 | 69% |
-| Golden Section | O(log\_φ N) | General objectives | 12 | 59% |
-| Ternary | O(log\_1.5 N) | Multi-step objectives | 14 | 52% |
-| Fibonacci | O(log\_φ N) | Discrete unimodal (optimal) | 10 | 66% |
-| Interpolation | O(log log N)\* | Smooth objectives | 11 | 62% |
-| Exponential | O(log K\*) | Unknown K range | 10 | 66% |
-| Predictive | O(1)+O(log Δ) | With data-driven hot-start | 7 | **76%** |
-
-\*Worst case degrades to O(N) for highly non-uniform objectives.
-
-Benchmark: K-Means on SyntheticBlobs (K\_true=8, range [2,30]). All strategies recover K\*=8.
+## Search Strategies Detail
 
 ### Predictive Search
 
 Predictive search uses PCA-based hot-start to estimate K\* before any model evaluation, then applies parabolic peak fitting:
+
+1. **PCA hot-start**: Eigenvalue elbow method estimates K\* from data structure
+2. **Probing**: Evaluate f(K̂−1), f(K̂), f(K̂+1)
+3. **Parabolic peak fitting**: Fit a parabola through the three best points and jump to the predicted peak
+4. **Binary refinement**: Narrow the search around the predicted peak
 
 ```python
 from atcnd import estimate_k_n_clusters, search
@@ -170,6 +248,14 @@ hot_k = estimate_k_n_clusters(X, k_min=2, k_max=30)
 # Predictive search uses hot_start to reduce evaluations
 result = search(f, k_min=2, k_max=30, strategy="predictive", hot_start=hot_k)
 ```
+
+### Fibonacci Search
+
+Classical optimal algorithm for discrete unimodal search (Kiefer 1953). Achieves minimum worst-case evaluations among all derivative-free methods on unimodal functions.
+
+### Exponential Search
+
+Doubles the probe point (1, 2, 4, 8, ...) until f(K) decreases, then refines via binary search. Best when K\* is near K\_min.
 
 ## Adapters
 
@@ -192,13 +278,6 @@ result = search(f, k_min=2, k_max=30, strategy="predictive", hot_start=hot_k)
 | Pandas | `search_dataframe_bins` | bins | AIC |
 | Pandas | `search_rolling_window` | window | BIC |
 | Gensim | `search_nmf_topics` | n\_topics | c\_v coherence |
-
-Run all demos with figures (SVG + PDF + PNG):
-
-```bash
-python examples/demo_all.py
-# Output: examples/figures/*.{svg,pdf,png}
-```
 
 ## Quality Metrics
 
@@ -225,6 +304,17 @@ ATCND is the first method in the model-agnostic + exact-K class to achieve O(log
 | HDP | No (LDA only) | No | 1 (costly) |
 | Top2Vec | No | No | 1 |
 | Black-box Opt. | No (LDA only) | Yes | Variable |
+
+### Real-World Results
+
+| Dataset | Adapter | K\* | Strategy | Evals | Reduction |
+|---------|---------|-----|----------|-------|-----------|
+| Iris | search\_model | 2 | binary | 5 | 64% |
+| Wine | search\_gmm | 2 | binary | 6 | 57% |
+| Digits | search\_components | 31 | binary | 10 | 84% |
+| Moons | search\_dbscan | 3 | binary | 10 | 64% |
+| Wine | search\_trees | 300 | binary | 37 | 87% |
+| Iris | search\_neighbors | 12 | binary | 9 | 70% |
 
 ## Development
 
