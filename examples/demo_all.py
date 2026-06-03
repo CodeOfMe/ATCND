@@ -37,9 +37,20 @@ def plot_curve(result, title, xlabel="K", ylabel="Score", highlight=True):
                "fibonacci":"#009688", "interpolation":"#673AB7",
                "exponential":"#FF5722", "predictive":"#E91E63",
                "probing":"#795548", "doubling":"#FF9800"}
-    for e in result.search_history:
+    history = result.search_history
+    for i, e in enumerate(history):
         c = phase_c.get(e.get("phase", ""), "#9E9E9E")
-        ax.plot(e["k"], e["score"], "s", color=c, ms=6, zorder=5)
+        ax.plot(e["k"], e["score"], "o", color=c, ms=7, zorder=5)
+        ax.annotate(str(i + 1), (e["k"], e["score"]), textcoords="offset points",
+                     xytext=(0, 9), ha='center', fontsize=7, color=c, fontweight='bold',
+                     bbox=dict(boxstyle='round,pad=0.12', fc='white', ec=c, lw=0.4, alpha=0.85))
+    if len(history) > 1:
+        for j in range(len(history) - 1):
+            e1, e2 = history[j], history[j + 1]
+            c = phase_c.get(e1.get("phase", ""), "#9E9E9E")
+            ax.annotate('', xy=(e2["k"], e2["score"]), xytext=(e1["k"], e1["score"]),
+                         arrowprops=dict(arrowstyle='->', color=c, lw=1, alpha=0.35,
+                                         connectionstyle='arc3,rad=0'))
     ax.set_xlabel(xlabel, fontsize=12); ax.set_ylabel(ylabel, fontsize=12)
     ax.set_title(title, fontsize=13); ax.legend(fontsize=10); ax.grid(True, alpha=.3)
     return fig
@@ -456,6 +467,18 @@ def demo_comparison():
         ax.set_title(f"{label}\nK*={r.optimal_k}, evals={n} ({pct})", fontsize=11)
         ax.set_xlabel("K"); ax.grid(True, alpha=.3)
         if i % 4 == 0: ax.set_ylabel("Silhouette")
+        history = r.search_history
+        for j, e in enumerate(history):
+            ax.plot(e["k"], e["score"], "o", color=colors[s], ms=6, zorder=5)
+            ax.annotate(str(j + 1), (e["k"], e["score"]), textcoords="offset points",
+                         xytext=(0, 8), ha='center', fontsize=6.5, color=colors[s], fontweight='bold',
+                         bbox=dict(boxstyle='round,pad=0.1', fc='white', ec=colors[s], lw=0.4, alpha=0.85))
+        if len(history) > 1:
+            for j in range(len(history) - 1):
+                e1, e2 = history[j], history[j + 1]
+                ax.annotate('', xy=(e2["k"], e2["score"]), xytext=(e1["k"], e1["score"]),
+                             arrowprops=dict(arrowstyle='->', color=colors[s], lw=0.8, alpha=0.3,
+                                             connectionstyle='arc3,rad=0'))
     plt.suptitle("ATCND: All Search Strategies on K-Means (K_true=8)", fontsize=14, y=1.01)
     plt.tight_layout()
     save_fig(fig, "14_comparison_strategies")
