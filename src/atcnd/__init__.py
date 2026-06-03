@@ -1,5 +1,6 @@
 """ATCND - Adaptive Topic and Cluster Number Determination."""
 
+from .search import search, SearchResult
 from .core import (
     ATCNDConfig,
     ATCNDResult,
@@ -7,25 +8,58 @@ from .core import (
     print_topics,
     plot_search_curve,
 )
-from .benchmark import (
-    load_synthetic,
-    load_synthetic_blobs,
-    run_benchmark,
-    run_all_benchmarks,
-    print_summary,
+from .adapters import (
+    search_model,
+    search_neighbors,
+    search_bins,
+    search_components,
+    search_knots,
+    search_window,
+    search_param,
+)
+from .animate import animate_search, animate_search_frames
+from .comparison import (
+    baseline_grid,
+    baseline_kneedle,
+    baseline_gap_statistic,
+    baseline_bic_gmm,
+    baseline_xmeans,
+    baseline_gmeans,
+    baseline_hdbscan,
+    baseline_eigengap,
+    baseline_hdp,
+    run_full_comparison,
+    print_comparison_table,
 )
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
+    "search",
+    "SearchResult",
     "ATCNDConfig",
     "ATCNDResult",
     "atcnd_search",
     "print_topics",
     "plot_search_curve",
-    "load_synthetic",
-    "load_synthetic_blobs",
-    "run_benchmark",
-    "run_all_benchmarks",
-    "print_summary",
+    "search_model",
+    "search_neighbors",
+    "search_bins",
+    "search_components",
+    "search_knots",
+    "search_window",
+    "search_param",
+    "animate_search",
+    "animate_search_frames",
+    "baseline_grid",
+    "baseline_kneedle",
+    "baseline_gap_statistic",
+    "baseline_bic_gmm",
+    "baseline_xmeans",
+    "baseline_gmeans",
+    "baseline_hdbscan",
+    "baseline_eigengap",
+    "baseline_hdp",
+    "run_full_comparison",
+    "print_comparison_table",
 ]
