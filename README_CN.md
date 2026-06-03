@@ -30,6 +30,22 @@ K-Means 基准测试（SyntheticBlobs，K\_true=8，范围 [2,30]）：
 
 所有策略均恢复K\*=8，轮廓系数相同。预测搜索配合PCA热启动实现最少评估次数。
 
+### 跨数据集一致性
+
+ATCND从不灾难性失败。比较五个基准数据集上的绝对误差 |K\* − K_true|：
+
+| 方法 | Iris | Wine | 乳腺癌 | Digits | Blobs | **平均** | **最大** |
+|------|------|------|--------|--------|-------|---------|----------|
+| **ATCND-sil** | 1 | 1 | 0 | 1 | 0 | **0.6** | **1** |
+| Kneedle | 2 | 2 | 2 | 1 | 0 | 1.4 | 2 |
+| X-Means | 0 | 0 | 0 | 8 | 6 | 2.8 | 8 |
+| Gap统计量 | 12 | 12 | 8 | 10 | 0 | 8.4 | 12 |
+| G-Means | 12 | 4 | 8 | 10 | 22 | 11.2 | 22 |
+
+<p align="center">
+  <img src="examples/figures/consistency_analysis.png" width="800" alt="一致性分析：ATCND从不灾难性失败">
+</p>
+
 ## 真实数据集演示
 
 ### K-Means on Iris（3D）
