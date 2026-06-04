@@ -216,3 +216,4 @@ __marimo__/
 docs/wechat-article.md
 scripts/generate_screenshots.py
 wechat.md
+.codegraph/daemon.pid
