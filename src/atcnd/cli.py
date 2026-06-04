@@ -11,7 +11,7 @@ def main():
         prog="atcnd",
         description="ATCND: Adaptive Topic and Cluster Number Determination",
     )
-    parser.add_argument("-V", "--version", action="version", version="atcnd 0.5.0")
+    parser.add_argument("-V", "--version", action="version", version="atcnd 0.5.2")
 
     sub = parser.add_subparsers(dest="command")
 
@@ -64,6 +64,10 @@ def main():
     mop.add_argument("--seed", type=int, default=42)
     mop.add_argument("--json", action="store_true")
 
+    rp = sub.add_parser("range", help="Suggest k_min/k_max range from data characteristics")
+    rp.add_argument("--model", choices=["kmeans", "lda", "nmf"], default="kmeans")
+    rp.add_argument("--json", action="store_true")
+
     args = parser.parse_args()
 
     if args.command == "search":
@@ -78,6 +82,8 @@ def main():
         _cmd_adaptive(args)
     elif args.command == "multi":
         _cmd_multi(args)
+    elif args.command == "range":
+        _cmd_range(args)
     else:
         parser.print_help()
 
@@ -223,6 +229,26 @@ def _cmd_multi(args):
         for metric, scores in mo.per_metric_scores.items():
             best_k = max(scores, key=scores.get)
             print(f"    {metric}: K*={best_k} (score={scores[best_k]:.4f})")
+
+
+def _cmd_range(args):
+    from atcnd import suggest_k_range
+    from sklearn.datasets import make_blobs
+    X, _ = make_blobs(n_samples=500, n_features=50, centers=8, random_state=42)
+    rec = suggest_k_range(X, model_type=args.model)
+    if args.json:
+        print(json.dumps({
+            "k_min": rec.k_min,
+            "k_max": rec.k_max,
+            "method": rec.method,
+            "rationale": rec.rationale,
+        }, indent=2))
+    else:
+        print(f"Suggested K range: [{rec.k_min}, {rec.k_max}]")
+        print(f"Method: {rec.method}")
+        print(f"Rationale:")
+        for name, val in rec.rationale.items():
+            print(f"  {name}: {val}")
 
 
 if __name__ == "__main__":

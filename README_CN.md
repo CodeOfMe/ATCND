@@ -5,7 +5,7 @@
 [![PyPI](https://img.shields.io/pypi/v/atcnd)](https://pypi.org/project/atcnd/)
 [![Python](https://img.shields.io/pypi/pyversions/atcnd)](https://pypi.org/project/atcnd/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-75%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-91%20passing-brightgreen)](tests/)
 
 ATCND 是一个模型无关的框架，通过将 K 值选择视为用户指定整数范围上的结构化搜索问题，来确定主题模型（LDA/NMF）的最优主题数或聚类方法（K-Means）的最优聚类数。在 ATCND 之前，没有任何模型无关且保证正确 K* 的方法达到亚线性评估次数：穷举网格搜索（模型无关+精确K等价类中的SOTA基线）需要 O(K_max − K_min) 次模型评估。ATCND 采用八种搜索策略实现 O(log(K_max − K_min)) 次评估——相比网格搜索减少59-79%，同时K*准确率相同。
 
@@ -124,6 +124,7 @@ python examples/demo_all.py
 - **排序候选集**：返回多个最优K值（处理平台区、并列分数、多极值情况）
 - **模型无关+精确K等价类中首个O(log N)方法**：相比网格搜索减少59-79%的模型评估次数
 - **预测搜索**配合PCA热启动：减少76%（7次评估 vs 网格的29次）
+- **自动K范围估计**：`suggest_k_range()` 基于PCA、√N和数据稀疏度启发式推荐搜索范围
 - **提供 CLI 和 Python API**
 
 ## 安装
@@ -248,6 +249,31 @@ atcnd adaptive --k-min 2 --k-max 30
 atcnd adaptive --k-min 2 --k-max 30 --run --json
 ```
 
+### 自动K范围估计
+
+无需手动指定 `k_min` 和 `k_max`，ATCND可根据数据特征自动推荐搜索范围：
+
+```python
+from atcnd import suggest_k_range
+
+rec = suggest_k_range(X, model_type="kmeans")
+print(f"建议范围: [{rec.k_min}, {rec.k_max}]")
+print(f"启发式: {rec.rationale}")
+# 例如 {pca_intrinsic_dim: 14, sqrt_n: 22, pca_elbow_doubled: 14}
+```
+
+返回的 `k_max` 基于三个上界启发式的调和均值乘以1.2×安全因子：
+- `pca_intrinsic_dim`：2 ×（PCA累积方差95%对应的维度数）
+- `sqrt_n`：√N经验法则（Mardia 1979）
+- `pca_elbow_doubled`（聚类）或 `topic_estimate_doubled`（主题模型）
+
+命令行:
+
+```bash
+atcnd range --model kmeans --json
+atcnd range --model lda
+```
+
 ### 多目标优化
 
 同时优化多个指标，返回帕累托最优K值：
@@ -279,6 +305,7 @@ atcnd multi --metrics silhouette bic --weights 0.7 0.3 --json
 atcnd search --model kmeans --strategy binary --k-min 2 --k-max 30
 atcnd search --model nmf --strategy golden_section --metric silhouette
 atcnd search --model kmeans --json
+atcnd range --model kmeans --json
 atcnd benchmark --dataset blobs --k-min 2 --k-max 30
 atcnd benchmark --dataset blobs --k-min 2 --k-max 30 --all-strategies
 ```

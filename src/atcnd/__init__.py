@@ -25,7 +25,10 @@ from .adapters import (
     search_rolling_window,
     search_nmf_topics,
 )
-from .search import estimate_k_n_clusters, estimate_k_n_topics
+search_gmm = search_gmm_components
+search_df_bins = search_dataframe_bins
+search_rolling = search_rolling_window
+from .search import estimate_k_n_clusters, estimate_k_n_topics, suggest_k_range, SuggestedKRange
 from .animate import animate_search, animate_search_frames
 from .comparison import (
     baseline_grid,
@@ -52,7 +55,7 @@ from .multi_objective import (
     MultiObjectiveResult,
 )
 
-__version__ = "0.5.1"
+__version__ = "0.5.3"
 
 __all__ = [
     "search",
@@ -77,8 +80,13 @@ __all__ = [
     "search_dataframe_bins",
     "search_rolling_window",
     "search_nmf_topics",
+    "search_gmm",
+    "search_df_bins",
+    "search_rolling",
     "estimate_k_n_clusters",
     "estimate_k_n_topics",
+    "suggest_k_range",
+    "SuggestedKRange",
     "animate_search",
     "animate_search_frames",
     "baseline_grid",

@@ -235,6 +235,29 @@ class TestEstimateFunctions(unittest.TestCase):
         self.assertGreaterEqual(k_est, 2)
         self.assertLessEqual(k_est, 30)
 
+    def test_suggest_k_range_kmeans(self):
+        from atcnd.search import suggest_k_range
+        rec = suggest_k_range(self.X, model_type="kmeans")
+        self.assertGreaterEqual(rec.k_min, 2)
+        self.assertGreaterEqual(rec.k_max, rec.k_min + 1)
+        self.assertIsInstance(rec.method, str)
+        self.assertIsInstance(rec.rationale, dict)
+        self.assertIn("pca_intrinsic_dim", rec.rationale)
+        self.assertIn("sqrt_n", rec.rationale)
+
+    def test_suggest_k_range_lda(self):
+        from atcnd.search import suggest_k_range
+        rec = suggest_k_range(self.X, model_type="lda")
+        self.assertGreaterEqual(rec.k_max, 3)
+        self.assertIn("topic_estimate_doubled", rec.rationale)
+
+    def test_suggest_k_range_small_data(self):
+        from atcnd.search import suggest_k_range
+        X_small, _ = make_blobs(n_samples=50, n_features=5, centers=3, random_state=42)
+        rec = suggest_k_range(X_small, model_type="kmeans")
+        self.assertGreaterEqual(rec.k_max, 3)
+        self.assertGreaterEqual(rec.k_min, 2)
+
 
 class TestAllStrategiesConsistency(unittest.TestCase):
     """Verify all strategies find the same peak on a synthetic unimodal function."""

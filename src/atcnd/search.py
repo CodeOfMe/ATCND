@@ -656,6 +656,62 @@ def predictive_search(
     )
 
 
+@dataclass
+class SuggestedKRange:
+    k_min: int
+    k_max: int
+    method: str
+    rationale: Dict[str, Any]
+
+
+def suggest_k_range(X, model_type="kmeans"):
+    X_arr = np.asarray(X) if not hasattr(X, 'toarray') else np.asarray(X.toarray())
+    n, d = X_arr.shape
+
+    from sklearn.decomposition import PCA
+    pca = PCA(n_components=min(d, n, 50), random_state=42)
+    pca.fit(X_arr)
+    cumvar = np.cumsum(pca.explained_variance_ratio_)
+    n_components_95 = int(np.searchsorted(cumvar, 0.95) + 1)
+
+    sqrt_n = int(np.sqrt(n))
+    log2_n = int(np.log2(n))
+
+    eigenvalues = pca.explained_variance_
+    ratio = eigenvalues[1:] / eigenvalues[:-1]
+    pca_elbow = int(np.argmax(ratio < 0.5) + 1) if np.any(ratio < 0.5) else n_components_95
+
+    if model_type in ("kmeans", "dbscan", "gmm"):
+        upper_bounds = []
+        upper_bounds.append(("pca_intrinsic_dim", n_components_95 * 2))
+        upper_bounds.append(("sqrt_n", sqrt_n))
+        upper_bounds.append(("pca_elbow_doubled", min(pca_elbow * 2, n // 5)))
+        rationale = {name: val for name, val in upper_bounds}
+        vals = [v for _, v in upper_bounds if v > 0]
+        rec_k_max = int(len(vals) / sum(1.0 / v for v in vals) * 1.2) if vals else 10
+        rec_k_max = max(rec_k_max, 5)
+    else:
+        sparsity = (X_arr > 0).sum() / max(n * d, 1)
+        avg_doc_len = X_arr.sum(axis=1).mean()
+        vocab_richness = (X_arr > 0).sum() / max(n * d, 1)
+        topic_estimate = max(int(avg_doc_len * vocab_richness * 5), 3)
+        upper_bounds = []
+        upper_bounds.append(("pca_intrinsic_dim", n_components_95 * 2))
+        upper_bounds.append(("sqrt_n", sqrt_n))
+        upper_bounds.append(("topic_estimate_doubled", topic_estimate * 2))
+        rationale = {name: val for name, val in upper_bounds}
+        vals = [v for _, v in upper_bounds if v > 0]
+        rec_k_max = int(len(vals) / sum(1.0 / v for v in vals) * 1.2) if vals else 10
+        rec_k_max = max(rec_k_max, 5)
+
+    return SuggestedKRange(
+        k_min=2,
+        k_max=rec_k_max,
+        method=f"min-of-heuristics({model_type})",
+        rationale=rationale,
+    )
+
+
 def estimate_k_n_clusters(X, k_min=2, k_max=200):
     X_arr = np.asarray(X) if not hasattr(X, 'toarray') else np.asarray(X.toarray())
     n_samples, n_features = X_arr.shape

@@ -5,7 +5,7 @@
 [![PyPI](https://img.shields.io/pypi/v/atcnd)](https://pypi.org/project/atcnd/)
 [![Python](https://img.shields.io/pypi/pyversions/atcnd)](https://pypi.org/project/atcnd/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-75%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-91%20passing-brightgreen)](tests/)
 
 ATCND is a model-agnostic framework that determines the optimal number of topics (for LDA/NMF) or clusters (for K-Means) by treating K selection as a structured search problem over a user-specified integer range. Prior to ATCND, no model-agnostic method with correct K\* achieved sub-linear evaluation count: exhaustive grid search (the SOTA baseline in the model-agnostic + exact-K class) requires O(K_max − K_min) model evaluations. ATCND applies eight search strategies to achieve O(log(K_max − K_min)) evaluations — 59–79% fewer than grid search while matching its K\* accuracy.
 
@@ -124,6 +124,7 @@ python examples/demo_all.py
 - **Ranked candidate set**: returns multiple optimal K values (handles plateaus, ties, multi-optima)
 - **First O(log N) method** in the model-agnostic + exact-K class: 59–79% fewer evaluations than grid search
 - **Predictive search** with PCA hot-start: 76% reduction (7 evaluations vs 29 for grid)
+- **Automatic K range estimation**: `suggest_k_range()` recommends search bounds from PCA, √N, and data sparsity heuristics
 - **CLI and Python API**
 
 ## Installation
@@ -251,6 +252,31 @@ atcnd adaptive --k-min 2 --k-max 30
 atcnd adaptive --k-min 2 --k-max 30 --run --json
 ```
 
+### Automatic K Range Estimation
+
+Instead of manually choosing `k_min` and `k_max`, ATCND can suggest a search range from data characteristics:
+
+```python
+from atcnd import suggest_k_range
+
+rec = suggest_k_range(X, model_type="kmeans")
+print(f"Suggested range: [{rec.k_min}, {rec.k_max}]")
+print(f"Heuristics: {rec.rationale}")
+# e.g. {pca_intrinsic_dim: 14, sqrt_n: 22, pca_elbow_doubled: 14}
+```
+
+The returned `k_max` is the harmonic mean of three upper-bound heuristics, scaled by a 1.2× safety factor:
+- `pca_intrinsic_dim`: 2 × (PCA dimensions for 95% cumulative variance)
+- `sqrt_n`: √N rule (Mardia 1979)
+- `pca_elbow_doubled` (clustering) or `topic_estimate_doubled` (topic models)
+
+CLI:
+
+```bash
+atcnd range --model kmeans --json
+atcnd range --model lda
+```
+
 ### Multi-Objective Optimization
 
 Optimize multiple metrics simultaneously and find Pareto-optimal K values:
@@ -291,6 +317,9 @@ atcnd search --model nmf --strategy golden_section --metric silhouette
 
 # JSON output
 atcnd search --model kmeans --json
+
+# Suggest K range from data
+atcnd range --model kmeans --json
 
 # Run benchmarks
 atcnd benchmark --dataset blobs --k-min 2 --k-max 30
